@@ -214,10 +214,19 @@ if menu == "Dashboard":
 # =========================
 elif menu == "Trening":
     st.title("🏋️ Trening PRO")
-
+    
     plan_name = list(PLAN.keys())[0]
-    day = list(PLAN[plan_name].keys())[0]
-    exercises = PLAN[plan_name][day]
+    plan = PLAN[plan_name]
+
+    day = st.selectbox("Wybierz dzień", list(plan.keys()))
+    exercises = plan[day]
+
+    today = str(date.today())
+    done = []
+
+    st.write(f"📅 {today}")
+    st.subheader(day)
+
 
     # =========================
     # 🔥 HEADER CARD (BONUS)
