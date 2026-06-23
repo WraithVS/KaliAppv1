@@ -6,17 +6,16 @@ import json
 import time
 
 # =========================
-# PAGE CONFIG (PWA STYLE)
+# PAGE CONFIG
 # =========================
 st.set_page_config(
     page_title="Calisthenics AI Coach",
     page_icon="🏋️",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="wide"
 )
 
 # =========================
-# MODERN UI STYLE
+# MODERN UI
 # =========================
 st.markdown("""
 <style>
@@ -29,51 +28,26 @@ section[data-testid="stSidebar"] {
     background: #0a0f1c;
 }
 
-/* Buttons */
 .stButton>button {
     width: 100%;
     background: linear-gradient(90deg, #6366f1, #22c55e);
     color: white;
     border-radius: 10px;
-    border: none;
     padding: 10px;
     font-weight: 600;
+    border: none;
 }
 
-/* Inputs */
-input, textarea {
+input {
     border-radius: 10px !important;
 }
 
-/* Metrics */
-div[data-testid="stMetric"] {
-    background: rgba(255,255,255,0.05);
-    padding: 15px;
-    border-radius: 15px;
-    border: 1px solid rgba(255,255,255,0.1);
-}
-
-/* Cards */
 .card {
-    padding: 15px;
-    margin: 10px 0;
+    padding: 12px;
+    margin: 8px 0;
     background: rgba(255,255,255,0.05);
     border-radius: 12px;
     border: 1px solid rgba(255,255,255,0.1);
-}
-
-/* Titles */
-h1, h2, h3 {
-    color: white;
-}
-
-/* Scrollbar */
-::-webkit-scrollbar {
-    width: 6px;
-}
-::-webkit-scrollbar-thumb {
-    background: #334155;
-    border-radius: 10px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -81,7 +55,7 @@ h1, h2, h3 {
 # =========================
 # DB
 # =========================
-conn = sqlite3.connect("calisthenics_ui.db", check_same_thread=False)
+conn = sqlite3.connect("calisthenics_final.db", check_same_thread=False)
 c = conn.cursor()
 
 def init_db():
@@ -99,7 +73,7 @@ def init_db():
         user TEXT,
         date TEXT,
         plan TEXT,
-        day_type TEXT,
+        day TEXT,
         done TEXT
     )
     """)
@@ -136,33 +110,37 @@ def login_user(u, p):
     return data and bcrypt.checkpw(p.encode(), data[0])
 
 # =========================
-# PLAN
+# FULL TRAINING PLAN
 # =========================
 PLAN = {
     "Planche + Muscle-up PRO": {
-        "A - Planche": [
-            "Planche lean",
-            "Pseudo planche push-ups",
-            "Dips",
-            "Pike push-ups",
-            "Hollow body",
-            "Leg raises"
+        "A - Planche + Push Strength": [
+            {"name": "Planche Lean", "sets": 5, "reps": "15–30s", "rest": "90–120s"},
+            {"name": "Pseudo Planche Push-ups", "sets": 4, "reps": "6–12", "rest": "90s"},
+            {"name": "Dips", "sets": 4, "reps": "5–10", "rest": "120s"},
+            {"name": "Pike Push-ups", "sets": 3, "reps": "6–10", "rest": "90s"},
+            {"name": "Hollow Body", "sets": 3, "reps": "20–40s", "rest": "60s"},
+            {"name": "Leg Raises", "sets": 3, "reps": "8–12", "rest": "60–90s"}
         ],
-        "B - Muscle-up": [
-            "Pull-ups",
-            "Explosive pull-ups",
-            "Chest-to-bar",
-            "Australian pull-ups",
-            "Dips",
-            "Core hollow"
+
+        "B - Muscle-up (Pull + Explosion)": [
+            {"name": "Pull-ups", "sets": 5, "reps": "5–10", "rest": "120s"},
+            {"name": "Explosive Pull-ups", "sets": 5, "reps": "3–5", "rest": "120s"},
+            {"name": "Chest-to-Bar", "sets": 4, "reps": "3–5", "rest": "120s"},
+            {"name": "Australian Pull-ups", "sets": 4, "reps": "8–12", "rest": "90s"},
+            {"name": "Dips", "sets": 4, "reps": "5–10", "rest": "120s"},
+            {"name": "Hollow Body", "sets": 3, "reps": "30s", "rest": "60s"},
+            {"name": "Plank", "sets": 3, "reps": "40–60s", "rest": "60s"}
         ],
+
         "C - Skill Mix": [
-            "Tuck planche",
-            "Planche lean heavy",
-            "Muscle-up transition",
-            "Explosive pull-ups",
-            "Pseudo planche push-ups",
-            "Core finisher"
+            {"name": "Planche Lean Heavy", "sets": 6, "reps": "15–25s", "rest": "120s"},
+            {"name": "Tuck Planche", "sets": 5, "reps": "8–20s", "rest": "120–150s"},
+            {"name": "Muscle-up Transition", "sets": 4, "reps": "3–5", "rest": "120s"},
+            {"name": "Explosive Pull-ups", "sets": 4, "reps": "3–5", "rest": "120s"},
+            {"name": "Pseudo Planche Push-ups", "sets": 3, "reps": "6–10", "rest": "90s"},
+            {"name": "Core Finisher", "sets": 3, "reps": "30–40s", "rest": "60s"},
+            {"name": "Leg Raises", "sets": 3, "reps": "10", "rest": "60s"}
         ]
     }
 }
@@ -205,7 +183,7 @@ if st.session_state.user is None:
     st.stop()
 
 # =========================
-# SIDEBAR
+# MENU
 # =========================
 st.sidebar.title(f"👤 {st.session_state.user}")
 
@@ -225,21 +203,11 @@ if menu == "Dashboard":
     st.title("📊 Dashboard")
 
     c.execute("SELECT COUNT(*) FROM workouts WHERE user=?", (st.session_state.user,))
-    workouts = c.fetchone()[0]
+    w = c.fetchone()[0]
 
-    c.execute("SELECT date, plan FROM workouts WHERE user=? ORDER BY id DESC LIMIT 1",
-              (st.session_state.user,))
-    last = c.fetchone()
+    st.metric("Treningi", w)
 
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.metric("🏋️ Treningi", workouts)
-
-    with col2:
-        st.metric("📅 Ostatni", last[0] if last else "Brak")
-
-    st.markdown("<div class='card'>🔥 Trenuj konsekwentnie — planche i muscle-up to gra cierpliwości.</div>", unsafe_allow_html=True)
+    st.markdown("<div class='card'>🔥 Trenuj konsekwentnie — planche + muscle-up = cierpliwość.</div>", unsafe_allow_html=True)
 
 # =========================
 # TRAINING
@@ -260,14 +228,19 @@ elif menu == "Trening":
     st.subheader(day)
 
     for ex in exercises:
-        col1, col2 = st.columns([6, 1])
+        col1, col2, col3, col4 = st.columns([4,1,1,1])
 
         with col1:
-            st.markdown(f"💪 {ex}")
-
+            st.write(f"💪 {ex['name']}")
         with col2:
-            if st.checkbox("", key=ex):
-                done.append(ex)
+            st.write(f"{ex['sets']}x")
+        with col3:
+            st.write(ex['reps'])
+        with col4:
+            st.write(ex['rest'])
+
+        if st.checkbox(f"Done {ex['name']}", key=ex['name']+day):
+            done.append(ex)
 
     if st.button("Zapisz trening"):
         c.execute(
@@ -283,25 +256,19 @@ elif menu == "Trening":
 elif menu == "Kalendarz":
     st.title("📅 Historia")
 
-    c.execute(
-        "SELECT date, plan, day_type, done FROM workouts WHERE user=? ORDER BY id DESC",
-        (st.session_state.user,)
-    )
-
+    c.execute("SELECT date, plan, day, done FROM workouts WHERE user=? ORDER BY id DESC",
+              (st.session_state.user,))
     rows = c.fetchall()
 
-    if not rows:
-        st.info("Brak treningów")
-    else:
-        for r in rows:
-            st.markdown(f"""
-            <div class='card'>
-                📅 <b>{r[0]}</b><br>
-                🏋️ {r[1]}<br>
-                🧠 {r[2]}<br>
-                ✔ {len(json.loads(r[3]))} ćwiczeń
-            </div>
-            """, unsafe_allow_html=True)
+    for r in rows:
+        st.markdown(f"""
+        <div class='card'>
+            📅 <b>{r[0]}</b><br>
+            🏋️ {r[1]}<br>
+            🧠 {r[2]}<br>
+            ✔ Ćwiczeń: {len(json.loads(r[3]))}
+        </div>
+        """, unsafe_allow_html=True)
 
 # =========================
 # PROGRESS
@@ -320,28 +287,16 @@ elif menu == "Progres":
         conn.commit()
         st.success("OK")
 
-    c.execute(
-        "SELECT exercise, value FROM progress WHERE user=?",
-        (st.session_state.user,)
-    )
-
-    data = c.fetchall()
-
-    for d in data:
-        st.markdown(f"""
-        <div class='card'>
-            💪 <b>{d[0]}</b> → {d[1]}
-        </div>
-        """, unsafe_allow_html=True)
-
 # =========================
 # AI COACH
 # =========================
-def ai_coach(user):
-    c.execute("SELECT COUNT(*) FROM workouts WHERE user=?", (user,))
+elif menu == "AI Coach":
+    st.title("🧠 AI Coach")
+
+    c.execute("SELECT COUNT(*) FROM workouts WHERE user=?", (st.session_state.user,))
     w = c.fetchone()[0]
 
-    c.execute("SELECT done FROM workouts WHERE user=?", (user,))
+    c.execute("SELECT done FROM workouts WHERE user=?", (st.session_state.user,))
     rows = c.fetchall()
 
     ex = sum(len(json.loads(r[0])) for r in rows)
@@ -349,26 +304,14 @@ def ai_coach(user):
     score = w * 5 + ex
 
     if score > 120:
-        return score, "🔥 Idziesz mocno — zwiększ trudność (planche + MU)"
+        msg = "🔥 Idziesz mocno — zwiększ trudność"
     elif score > 60:
-        return score, "⚖️ Stabilny progres — utrzymaj poziom"
-    return score, "🧱 Buduj bazę — technika > ego"
-
-# =========================
-# AI UI
-# =========================
-if menu == "AI Coach":
-    st.title("🧠 AI Coach")
-
-    score, msg = ai_coach(st.session_state.user)
+        msg = "⚖️ Stabilny progres"
+    else:
+        msg = "🧱 Buduj bazę"
 
     st.metric("Form Score", score)
-
-    st.markdown(f"""
-    <div class='card'>
-        🤖 {msg}
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f"<div class='card'>🤖 {msg}</div>", unsafe_allow_html=True)
 
 # =========================
 # TIMER
@@ -380,7 +323,6 @@ elif menu == "Timer":
 
     if st.button("Start"):
         sec = mins * 60
-
         placeholder = st.empty()
 
         for i in range(sec, 0, -1):
