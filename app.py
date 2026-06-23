@@ -6,7 +6,7 @@ import json
 import time
 
 # =========================
-# PWA / UI CONFIG
+# PAGE CONFIG (PWA STYLE)
 # =========================
 st.set_page_config(
     page_title="Calisthenics AI Coach",
@@ -16,9 +16,72 @@ st.set_page_config(
 )
 
 # =========================
+# MODERN UI STYLE
+# =========================
+st.markdown("""
+<style>
+.stApp {
+    background: linear-gradient(135deg, #0b1220, #0f172a);
+    color: white;
+}
+
+section[data-testid="stSidebar"] {
+    background: #0a0f1c;
+}
+
+/* Buttons */
+.stButton>button {
+    width: 100%;
+    background: linear-gradient(90deg, #6366f1, #22c55e);
+    color: white;
+    border-radius: 10px;
+    border: none;
+    padding: 10px;
+    font-weight: 600;
+}
+
+/* Inputs */
+input, textarea {
+    border-radius: 10px !important;
+}
+
+/* Metrics */
+div[data-testid="stMetric"] {
+    background: rgba(255,255,255,0.05);
+    padding: 15px;
+    border-radius: 15px;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+/* Cards */
+.card {
+    padding: 15px;
+    margin: 10px 0;
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+/* Titles */
+h1, h2, h3 {
+    color: white;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+}
+::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 10px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# =========================
 # DB
 # =========================
-conn = sqlite3.connect("calisthenics_pwa.db", check_same_thread=False)
+conn = sqlite3.connect("calisthenics_ui.db", check_same_thread=False)
 c = conn.cursor()
 
 def init_db():
@@ -50,7 +113,6 @@ def init_db():
         date TEXT
     )
     """)
-
     conn.commit()
 
 init_db()
@@ -71,13 +133,10 @@ def register_user(u, p):
 def login_user(u, p):
     c.execute("SELECT password FROM users WHERE username=?", (u,))
     data = c.fetchone()
-
-    if data and bcrypt.checkpw(p.encode(), data[0]):
-        return True
-    return False
+    return data and bcrypt.checkpw(p.encode(), data[0])
 
 # =========================
-# PLAN PRO
+# PLAN
 # =========================
 PLAN = {
     "Planche + Muscle-up PRO": {
@@ -109,19 +168,13 @@ PLAN = {
 }
 
 # =========================
-# SESSION STATE
+# SESSION
 # =========================
 if "user" not in st.session_state:
     st.session_state.user = None
 
-if "timer" not in st.session_state:
-    st.session_state.timer = 0
-
-if "running" not in st.session_state:
-    st.session_state.running = False
-
 # =========================
-# LOGIN PAGE
+# LOGIN
 # =========================
 if st.session_state.user is None:
     st.title("🏋️ Calisthenics AI Coach")
@@ -158,7 +211,7 @@ st.sidebar.title(f"👤 {st.session_state.user}")
 
 menu = st.sidebar.radio("Menu", [
     "Dashboard",
-    "Trening PRO",
+    "Trening",
     "Kalendarz",
     "Progres",
     "AI Coach",
@@ -178,15 +231,20 @@ if menu == "Dashboard":
               (st.session_state.user,))
     last = c.fetchone()
 
-    st.metric("Treningi", workouts)
+    col1, col2 = st.columns(2)
 
-    if last:
-        st.info(f"Ostatni trening: {last[0]} | {last[1]}")
+    with col1:
+        st.metric("🏋️ Treningi", workouts)
+
+    with col2:
+        st.metric("📅 Ostatni", last[0] if last else "Brak")
+
+    st.markdown("<div class='card'>🔥 Trenuj konsekwentnie — planche i muscle-up to gra cierpliwości.</div>", unsafe_allow_html=True)
 
 # =========================
 # TRAINING
 # =========================
-elif menu == "Trening PRO":
+elif menu == "Trening":
     st.title("🏋️ Trening PRO")
 
     plan_name = list(PLAN.keys())[0]
@@ -198,12 +256,18 @@ elif menu == "Trening PRO":
     today = str(date.today())
     done = []
 
-    st.write("📅", today)
+    st.write(f"📅 {today}")
     st.subheader(day)
 
     for ex in exercises:
-        if st.checkbox(ex):
-            done.append(ex)
+        col1, col2 = st.columns([6, 1])
+
+        with col1:
+            st.markdown(f"💪 {ex}")
+
+        with col2:
+            if st.checkbox("", key=ex):
+                done.append(ex)
 
     if st.button("Zapisz trening"):
         c.execute(
@@ -230,7 +294,14 @@ elif menu == "Kalendarz":
         st.info("Brak treningów")
     else:
         for r in rows:
-            st.write(f"📅 {r[0]} | {r[1]} | {r[2]} | ✔ {len(json.loads(r[3]))}")
+            st.markdown(f"""
+            <div class='card'>
+                📅 <b>{r[0]}</b><br>
+                🏋️ {r[1]}<br>
+                🧠 {r[2]}<br>
+                ✔ {len(json.loads(r[3]))} ćwiczeń
+            </div>
+            """, unsafe_allow_html=True)
 
 # =========================
 # PROGRESS
@@ -257,31 +328,34 @@ elif menu == "Progres":
     data = c.fetchall()
 
     for d in data:
-        st.write(d[0], "→", d[1])
+        st.markdown(f"""
+        <div class='card'>
+            💪 <b>{d[0]}</b> → {d[1]}
+        </div>
+        """, unsafe_allow_html=True)
 
 # =========================
 # AI COACH
 # =========================
 def ai_coach(user):
     c.execute("SELECT COUNT(*) FROM workouts WHERE user=?", (user,))
-    workouts = c.fetchone()[0]
+    w = c.fetchone()[0]
 
     c.execute("SELECT done FROM workouts WHERE user=?", (user,))
     rows = c.fetchall()
 
-    exercises = sum(len(json.loads(r[0])) for r in rows)
+    ex = sum(len(json.loads(r[0])) for r in rows)
 
-    score = workouts * 5 + exercises
+    score = w * 5 + ex
 
     if score > 120:
-        return score, "🔥 Idziesz mocno — zwiększ trudność (planche + MU eksplozja)"
+        return score, "🔥 Idziesz mocno — zwiększ trudność (planche + MU)"
     elif score > 60:
         return score, "⚖️ Stabilny progres — utrzymaj poziom"
-    else:
-        return score, "🧱 Buduj bazę — mniej objętości, więcej techniki"
+    return score, "🧱 Buduj bazę — technika > ego"
 
 # =========================
-# AI COACH UI
+# AI UI
 # =========================
 if menu == "AI Coach":
     st.title("🧠 AI Coach")
@@ -289,28 +363,26 @@ if menu == "AI Coach":
     score, msg = ai_coach(st.session_state.user)
 
     st.metric("Form Score", score)
-    st.info(msg)
+
+    st.markdown(f"""
+    <div class='card'>
+        🤖 {msg}
+    </div>
+    """, unsafe_allow_html=True)
 
 # =========================
 # TIMER
 # =========================
 elif menu == "Timer":
-    st.title("⏱ Timer odpoczynku")
+    st.title("⏱ Timer")
 
     mins = st.slider("Minuty", 1, 10, 2)
 
     if st.button("Start"):
-        st.session_state.timer = mins * 60
-        st.session_state.running = True
+        sec = mins * 60
 
-    placeholder = st.empty()
+        placeholder = st.empty()
 
-    if st.session_state.running:
-        if st.session_state.timer > 0:
-            placeholder.write(f"⏳ {st.session_state.timer} sec")
+        for i in range(sec, 0, -1):
+            placeholder.markdown(f"<h1 style='text-align:center'>{i}</h1>", unsafe_allow_html=True)
             time.sleep(1)
-            st.session_state.timer -= 1
-            st.rerun()
-        else:
-            st.session_state.running = False
-            st.success("Czas!")
